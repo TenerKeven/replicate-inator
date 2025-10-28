@@ -1,0 +1,32 @@
+[gd_scene load_steps=4 format=3 uid="uid://be7jr4qumqhma"]
+
+[ext_resource type="Script" uid="uid://57j13ybhs8rl" path="res://Start.cs" id="1_co24e"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_feb8i"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kj3p2"]
+
+[node name="Node3D" type="Node3D" node_paths=PackedStringArray("charactersNode")]
+script = ExtResource("1_co24e")
+charactersNode = NodePath("Characters")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(25, 0, 0, 0, 1, 0, 0, 0, 25, 0, 0, 0)
+mesh = SubResource("BoxMesh_feb8i")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="MeshInstance3D"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="MeshInstance3D/StaticBody3D"]
+shape = SubResource("BoxShape3D_kj3p2")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.98005325, 0.19873509, 0, -0.19873509, 0.98005325, 0, 6.2238293, 20.856203)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.032283016, 0.99947876, 0, -0.99947876, 0.032283016, 0, 7.8115263, 0)
+
+[node name="Characters" type="Node" parent="."]
+
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("uid://jmlw5bmmfgkm")
+spawn_path = NodePath("../Characters")

@@ -1,0 +1,30 @@
+[gd_scene load_steps=6 format=3 uid="uid://jmlw5bmmfgkm"]
+
+[ext_resource type="Script" uid="uid://bbusrf65og6wr" path="res://teste.cs" id="1_vd578"]
+[ext_resource type="Script" uid="uid://bowv7ngudtyl1" path="res://addons/replicate_inator/scripts/Replicator.cs" id="2_c7tqt"]
+[ext_resource type="Script" uid="uid://dbuwm58qo3utq" path="res://addons/replicate_inator/scripts/replication_components/CharacterBody3DReplication.cs" id="3_nl27k"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_v62h7"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_feb8i"]
+
+[node name="CharacterBody3D" type="CharacterBody3D" node_paths=PackedStringArray("replicator")]
+script = ExtResource("1_vd578")
+replicator = NodePath("Replicator")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape3D_v62h7")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("CapsuleMesh_feb8i")
+
+[node name="Replicator" type="Node" parent="." node_paths=PackedStringArray("replicationComponents")]
+script = ExtResource("2_c7tqt")
+authorityType = 1
+targetPath = NodePath("..")
+replicationComponents = [NodePath("../CharacterBody3DReplication")]
+metadata/_custom_type_script = "uid://bowv7ngudtyl1"
+
+[node name="CharacterBody3DReplication" type="Node" parent="."]
+script = ExtResource("3_nl27k")
+metadata/_custom_type_script = "uid://dbuwm58qo3utq"
