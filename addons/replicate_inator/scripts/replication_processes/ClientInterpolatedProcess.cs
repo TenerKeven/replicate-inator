@@ -14,8 +14,6 @@ public class ClientInterpolatedProcess : IProcess
     
     void IProcess.PhysicsProcess(Replicator replicator, float delta, int processTick, ulong timeNow)
     {
-        replicator.Tick += 1;
-        
         int currentInterpolationTick = replicator.currentInterpolationTick < processTick ? processTick : replicator.currentInterpolationTick;
         
         foreach (var component in replicator.ReplicationComponents)
@@ -29,12 +27,16 @@ public class ClientInterpolatedProcess : IProcess
             {
                 replicator.currentInterpolationTick = replicator.interpolationTicksOrder[0];
                 replicator.interpolationTicksOrder.RemoveAt(0);
+                replicator.Tick += 1;
             }
             else
             {
                 replicator.currentInterpolationTick = processTick;
             }
-            
+        }
+        else
+        {
+            replicator.Tick += 1;
         }
     }
 }
