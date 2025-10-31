@@ -28,7 +28,7 @@ public partial class teste : CharacterBody3D
         if (Input.IsActionPressed("jump"))
             jumped = true;
         
-        return inputDirection == Vector2I.Zero ? new EmptyInput(default, default) : new InputMovement3D(default, default, inputDirection, jumped);
+        return inputDirection == Vector2I.Zero && !jumped ? new EmptyInput(default, default) : new InputMovement3D(default, default, inputDirection, jumped);
     }
 
     public override void _PhysicsProcess(double delta)

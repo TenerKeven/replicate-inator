@@ -10,6 +10,8 @@ public struct Transform3DField(int tick, ulong timeStamp, Transform3D transform,
     public Vector3 Velocity { get; set; } = velocity;
     public Transform3D Transform { get; set; } = transform;
     
+    public bool FromServer { get; set; }
+    
     public byte[] Serialize()
     {
         var stream = new StreamPeerBuffer();

@@ -24,6 +24,8 @@ public class ClientPredictedProcess : IProcess
     
     void IProcess.PhysicsProcess(Replicator replicator, float delta, int processTick, ulong timeNow)
     {
+        replicator.Tick += 1;
+        
         ClearSomeInputsToProcess(ref replicator);
         IInputReplication currentInput = replicator.LocalInputsToProcess.Count > 0 ? replicator.LocalInputsToProcess.Dequeue() : new EmptyInput(processTick, timeNow);
         
@@ -40,7 +42,7 @@ public class ClientPredictedProcess : IProcess
         replicator.LocalInputsNotConfirmed.Enqueue(processTick);
 
         ClearReconciliations(ref replicator);
-        DoReconciliation(ref replicator, delta);
+        DoReconciliation(ref replicator, processTick, delta);
     }
     
     private void ReconstituteInputs(ref Replicator replicator)
@@ -139,9 +141,9 @@ public class ClientPredictedProcess : IProcess
         }
     }
 
-    private void DoReconciliation(ref Replicator replicator, float delta)
+    private void DoReconciliation(ref Replicator replicator, int processTick, float delta)
     {
-        int amount = replicator.Tick - replicator.nextLocalReconcilationTick;
+        int amount = processTick - replicator.nextLocalReconcilationTick;
         
         while (amount > 0)
         {
@@ -161,7 +163,7 @@ public class ClientPredictedProcess : IProcess
                     {
                         if (replicator.rollback && component.rollback)
                         {
-                            for (int a = replicator.Tick; a >= replicator.nextLocalReconcilationTick; a--)
+                            for (int a = processTick; a >= replicator.nextLocalReconcilationTick; a--)
                             {
                                 if (replicator.InputsBuffer.TryGetAt(a, out IInputReplication input))
                                 {
@@ -170,7 +172,7 @@ public class ClientPredictedProcess : IProcess
                             }
                         }
                         
-                        for (int a = replicator.nextLocalReconcilationTick + 1; a <= replicator.Tick; a++)
+                        for (int a = replicator.nextLocalReconcilationTick + 1; a <= processTick; a++)
                         {
                             if (replicator.InputsBuffer.TryGetAt(a, out IInputReplication input))
                             {

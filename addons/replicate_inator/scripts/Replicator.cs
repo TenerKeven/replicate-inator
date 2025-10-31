@@ -12,9 +12,8 @@ namespace ReplicateInator.addons.replicate_inator.scripts
         [Export] private EAuthorityType authorityType;
         [Export] private NodePath targetPath;
         [Export] private EReplicationType replicationType;
-        [Export] private Godot.Collections.Array<ReplicationComponent> replicationComponents = [];
+        [Export] private Array<ReplicationComponent> replicationComponents = [];
         [Export] private int buffersMaxSize = 1000;
-        [Export] public int maxTickOffset = 25;
         [Export] public bool rollback;
         
         private int minimunTickOffset = 10;
@@ -24,7 +23,7 @@ namespace ReplicateInator.addons.replicate_inator.scripts
         private float tickDeltaMs = 1000.0f / Engine.PhysicsTicksPerSecond;
         private int tick;
         private int networkId;
-        private bool initialized;
+        public bool initialized;
         private bool firstDataReceived;
         private IProcess replicationProcess;
         private PingPong pingPong;
@@ -32,6 +31,7 @@ namespace ReplicateInator.addons.replicate_inator.scripts
         
         // Server Vars //
         [Export] public int maxInputsToServerStore = 150;
+        [Export] public int maxTickOffset = 10;
         
         private System.Collections.Generic.Dictionary<int, IInputReplication> clientInputsToProcess = new();
         public int currentClientInputToProcess = -1;
@@ -41,16 +41,24 @@ namespace ReplicateInator.addons.replicate_inator.scripts
         [Export] public int maxLocalInputsToProcess = 50;
         [Export] public int maxLocalInputsWaitingToReconstitute = 50;
         [Export] public int maxLocalReconciliationsAmount = 50;
+        [Export] public int minInterpolationTicksOffset = 5;
+        [Export] public int maxInterpolationTicksOffset = 20;
+        [Export] private NodePath targetVisualPath;
         
         public int lastLocalReconcilatedTick = -1;
         public int nextLocalReconcilationTick = -1;
+
+        public int currentInterpolationTick = -1;
+        public int newestInterpolationTickFromServer = -1;
+        public Array<int> interpolationTicksOrder = [];
+        
         private Queue<IInputReplication> localInputsToProcess = [];
         private Queue<int> localInputsNotConfirmed = new();
         private System.Collections.Generic.Dictionary<int, bool> localInputsConfirmed = [];
         private System.Collections.Generic.Dictionary<int, IInputReplication> localInputsWaitingToReconstitute = new();
         private System.Collections.Generic.Dictionary<int, Array<Array<byte[]>>> localReconciliationDictionary = new();
         
-        public int Tick { get  => tick; }
+        public int Tick { get  => tick; set => tick = value; }
 
         public Queue<IInputReplication> LocalInputsToProcess
         {
@@ -66,7 +74,7 @@ namespace ReplicateInator.addons.replicate_inator.scripts
         {
             get { return replicationComponents; }
         }
-
+        
         public System.Collections.Generic.Dictionary<int, Array<Array<byte[]>>> LocalReconciliationDictionary
         {
             get { return localReconciliationDictionary; }
@@ -120,11 +128,13 @@ namespace ReplicateInator.addons.replicate_inator.scripts
             
             foreach (var replicationComponent in replicationComponents)
             {
-                replicationComponent.Initialize(targetPath);
+                replicationComponent.Initialize(targetPath, targetVisualPath);
             } 
             
             SaveTick(tick, Time.GetTicksMsec(), default);
             SetPhysicsProcess(true);
+            
+            tick += 1;
         }
 
         public override void _EnterTree()
@@ -141,6 +151,8 @@ namespace ReplicateInator.addons.replicate_inator.scripts
                 return;
             }
 
+            Name = replicationNode.Name;
+            
             ProcessPhysicsPriority = replicationNode.ProcessPhysicsPriority + 1;
             ProcessPriority = replicationNode.ProcessPriority + 1;
             
@@ -214,9 +226,7 @@ namespace ReplicateInator.addons.replicate_inator.scripts
 
             ulong timeNow = Time.GetTicksMsec();
             
-            tick += 1;
-            
-            replicationProcess.PhysicsProcess(this, deltaTicks, tick, timeNow);
+            replicationProcess.PhysicsProcess(this, (float) delta, tick, timeNow);
         }
 
         public void SaveTick(int processTick, ulong timeNow, IInputReplication input)
@@ -258,7 +268,7 @@ namespace ReplicateInator.addons.replicate_inator.scripts
         
         //Here we are requesting the Node multiplayer authority since godot doenst auto replicate it for us
         
-        [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+        [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
         private void RequestMultiplayerAuthority()
         {
             RpcId(Multiplayer.GetRemoteSenderId(), nameof(ReceiveMultiplayerAuthority), networkId);
@@ -374,7 +384,7 @@ namespace ReplicateInator.addons.replicate_inator.scripts
             {
                 for (int i = 0; i < updateArray.Count; i++)
                 {
-                    replicationComponents[i].SaveTickFromData(clientTick, updateArray[i]);
+                    replicationComponents[i].SaveTickFromData(clientTick, updateArray[i],false);
                 }
                 return;
             }
@@ -389,6 +399,59 @@ namespace ReplicateInator.addons.replicate_inator.scripts
             if (nextLocalReconcilationTick == -1 || clientTick < nextLocalReconcilationTick)
             {
                 nextLocalReconcilationTick = clientTick;
+            }
+        }
+        
+        // Here we do with non local replication, bassicaly receiving informations about others clients / server owner only data //
+        [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Unreliable)]
+        public void UpdateNonLocalReplicationStates(Array<Array<byte[]>> updateArray, int serverTick)
+        {
+            int newClientTick = serverTick + minInterpolationTicksOffset;
+
+            if (newClientTick < tick)
+            {
+                for (int i = 0; i < updateArray.Count; i++)
+                {
+                    replicationComponents[i].SaveTickFromData(newClientTick, updateArray[i],false);
+                }
+                
+                return;
+            }
+            
+            ulong timeNow = Time.GetTicksMsec();
+
+            if (serverTick > newestInterpolationTickFromServer)
+            {
+                newestInterpolationTickFromServer = serverTick;
+
+                for (int i = tick; i < newClientTick; i ++ )
+                {
+                    foreach (var component in replicationComponents)
+                    {
+                        component.SaveTick(i, timeNow);
+                    }
+                }
+                
+                for (int i = 0; i < updateArray.Count; i++)
+                {
+                    replicationComponents[i].ApplyReplicatedServerData(serverTick + minInterpolationTicksOffset, updateArray[i], true);
+                }
+            }
+
+            if (currentInterpolationTick == -1 || newClientTick < currentInterpolationTick)
+            {
+                currentInterpolationTick = newClientTick;
+            }
+            
+            interpolationTicksOrder.Add(newClientTick);
+            interpolationTicksOrder.Sort();
+
+            int difference = newClientTick - tick;
+
+            if (difference > maxInterpolationTicksOffset)
+            {
+                GD.Print("too biig diff");
+                tick = newClientTick - minInterpolationTicksOffset;
             }
         }
     }

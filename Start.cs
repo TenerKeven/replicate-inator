@@ -10,6 +10,7 @@ public partial class Start : Node3D
 
     private const string Address = "127.0.0.1";
     private const int Port = 12345;
+    private int added = 0;
 
     public override void _Ready()
     {
@@ -71,9 +72,11 @@ public partial class Start : Node3D
 
     public void NewPeer(long uuid)
     {
+        added += 1;
+        
         teste mainCharacter = GD.Load<PackedScene>("res://character_body_3d.tscn").Instantiate<teste>();
         
-        mainCharacter.Name = "" + uuid; 
+        mainCharacter.Name = "" + added; 
         mainCharacter.SetMultiplayerAuthority((int)uuid);
         
         charactersNode.AddChild(mainCharacter);

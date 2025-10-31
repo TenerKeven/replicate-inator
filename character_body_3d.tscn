@@ -23,6 +23,7 @@ script = ExtResource("2_c7tqt")
 authorityType = 1
 targetPath = NodePath("..")
 replicationComponents = [NodePath("../CharacterBody3DReplication")]
+targetVisualPath = NodePath("../MeshInstance3D")
 metadata/_custom_type_script = "uid://bowv7ngudtyl1"
 
 [node name="CharacterBody3DReplication" type="Node" parent="."]

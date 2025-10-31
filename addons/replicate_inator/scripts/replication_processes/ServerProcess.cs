@@ -9,6 +9,7 @@ public class ServerProcess : IProcess
 {
     private int _tickOffset = 0;
     private readonly Queue<UpdateClientValues> _valuesToUpdateClient = new();
+    private readonly Queue<int> _valuesToUpdateOthers = new();
     
     void IProcess.Process(Replicator replicator)
     {
@@ -24,10 +25,30 @@ public class ServerProcess : IProcess
             
             replicator.RpcId(replicator.NetworkId, nameof(replicator.UpdateLocalClientReconciliationStates), updateArray, values.ClientTick);
         }
+
+        while (_valuesToUpdateOthers.Count > 0)
+        {
+            int tickToSend = _valuesToUpdateOthers.Dequeue();
+            Array<Array<byte[]>> updateArray = [];
+            
+            for (int i = 0; i < replicator.ReplicationComponents.Count; i++)
+            {
+                updateArray.Add(replicator.ReplicationComponents[i].ConvertStateToBytes(tickToSend));
+            }
+
+            foreach (var id in replicator.Multiplayer.GetPeers())
+            {
+                if (id == replicator.NetworkId) continue;
+                
+                replicator.RpcId(id, nameof(replicator.UpdateNonLocalReplicationStates), updateArray, tickToSend);
+            }
+        }
     }
     
     void IProcess.PhysicsProcess(Replicator replicator, float delta, int processTick, ulong timeNow)
     {
+        replicator.Tick += 1;
+        
         int newTickOffset = 0;
 
         if (replicator.PingPong.GetClientStat(replicator.NetworkId, out PingPong.PingStats pingStats))
@@ -51,6 +72,8 @@ public class ServerProcess : IProcess
         }
             
         replicator.SaveTick(processTick, timeNow, emptyInput);
+        
+        _valuesToUpdateOthers.Enqueue(processTick);
     }
 
     private bool TrySimulatedClientInput(ref Replicator replicator, float delta, int processTick, ulong timeNow)
@@ -65,8 +88,7 @@ public class ServerProcess : IProcess
                 replicator.ClientInputsToProcess.Remove(replicator.currentClientInputToProcess);
                 replicator.currentClientInputToProcess += 1;
                 
-                TrySimulatedClientInput(ref replicator, delta, processTick, timeNow);
-                return false;
+                return TrySimulatedClientInput(ref replicator, delta, processTick, timeNow);
             }
 
             if (serverTick < processTick)
@@ -87,6 +109,7 @@ public class ServerProcess : IProcess
             replicator.SaveTick(processTick, timeNow, serverVersion);
             
             _valuesToUpdateClient.Enqueue(new UpdateClientValues(clientTick, processTick));
+            _valuesToUpdateOthers.Enqueue(processTick);
             
             replicator.ClientInputsToProcess.Remove(replicator.currentClientInputToProcess);
             replicator.lastClientTickProcessed = replicator.currentClientInputToProcess;
